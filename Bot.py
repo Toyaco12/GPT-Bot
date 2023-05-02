@@ -1,21 +1,47 @@
-import openai
 import os
 from dotenv import load_dotenv
+import openai
+import discord
+from discord.ext import commands
 
 load_dotenv()
-openai.api_key = os.getenv("OPENAI_API_KEY")
+DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
-def chat_gpt(query, model="text-davinci-002"):
-    response = openai.Completion.create(
-        engine=model,
-        prompt=query,
-        max_tokens=150,
-        n=1,
-        stop=None,
-        temperature=0.5,
+intents = discord.Intents.default()
+intents.typing = False
+intents.presences = False
+intents.message_content = True
+
+openai.api_key = OPENAI_API_KEY
+bot = commands.Bot(command_prefix="", intents=intents)
+
+@bot.event
+async def on_ready():
+    print(f"{bot.user} has connected to Discord!")
+
+@bot.event
+async def on_message(message):
+    if message.author == bot.user:
+        return
+
+    content_list = []
+    if message.content:
+        content_list.append(message.content)
+
+    for attachment in message.attachments:
+        content_list.append({"image": await attachment.read()})
+
+    content = " ".join([str(item) for item in content_list])
+
+    completion = openai.ChatCompletion.create(
+        model="gpt-4",
+        messages=[
+            {"role": "user", "content": content}
+        ]
     )
 
-    return response.choices[0].text.strip()
-question = "Qu'est-ce que l'intelligence artificielle ?"
-response = chat_gpt(question)
-print(response)
+    assistant_response = completion.choices[0].message["content"]
+    await message.channel.send(assistant_response)
+
+bot.run(DISCORD_TOKEN)
